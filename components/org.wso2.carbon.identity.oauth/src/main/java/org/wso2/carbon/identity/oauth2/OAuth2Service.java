@@ -25,6 +25,7 @@ import org.apache.oltu.oauth2.common.message.types.GrantType;
 import org.owasp.encoder.Encode;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.core.AbstractAdmin;
+import org.wso2.carbon.identity.action.execution.api.exception.ActionExecutionException;
 import org.wso2.carbon.identity.base.IdentityException;
 import org.wso2.carbon.identity.central.log.mgt.utils.LogConstants;
 import org.wso2.carbon.identity.central.log.mgt.utils.LoggerUtils;
@@ -475,12 +476,23 @@ public class OAuth2Service extends AbstractAdmin {
             handleErrorMessage(tokenRespDTO, e.getMessage());
             return tokenRespDTO;
         } catch (Exception e) { // in case of an error, consider it as a system error
-            log.error("Error occurred while issuing the access token for Client ID : " +
+            Throwable rootCause = e;
+            while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+                rootCause = rootCause.getCause();
+            }
+            String errorLog = "Error occurred while issuing the access token for Client ID : " +
                     tokenReqDTO.getClientId() + ", User ID " + (LoggerUtils.isLogMaskingEnable ?
-                            LoggerUtils.getMaskedContent(tokenReqDTO.getResourceOwnerUsername()) :
-                            tokenReqDTO.getResourceOwnerUsername()) +
+                    LoggerUtils.getMaskedContent(tokenReqDTO.getResourceOwnerUsername()) :
+                    tokenReqDTO.getResourceOwnerUsername()) +
                     ", Scope : " + Arrays.toString(tokenReqDTO.getScope()) + " and Grant Type : " +
-                    tokenReqDTO.getGrantType(), e);
+                    tokenReqDTO.getGrantType();
+            if (rootCause instanceof ActionExecutionException) {
+                if (log.isDebugEnabled()) {
+                    log.error(errorLog, e);
+                }
+            } else {
+                log.error(errorLog, e);
+            }
             if (LoggerUtils.isDiagnosticLogsEnabled()) {
                 LoggerUtils.triggerDiagnosticLogEvent(new DiagnosticLog.DiagnosticLogBuilder(
                         OAuthConstants.LogConstants.OAUTH_INBOUND_SERVICE,
